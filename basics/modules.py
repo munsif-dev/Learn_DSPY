@@ -49,10 +49,60 @@ class ReAct(dspy.Module):
 class ComplexQA(dspy.Module):
     def __init__(self):
         super().__init__()
-        # Define the multi-step process
+        # Break down complex reasoning into steps
         self.decompose = dspy.ChainOfThought("question -> subquestions")
-        self.answer_subquestions = dspy.Predict("subquestion -> subanswer")
-        self.systhesize = dspy.ChainOfThought("question, subanswers -> final_answer")
-
-        def forward(self, question):
+        self.answer_sub = dspy.Predict("subquestion -> subanswer") 
+        self.synthesize = dspy.ChainOfThought("question, subanswers -> final_answer")
+    
+    def forward(self, question):
+        # Step 1: Break question into parts
+        decomposition = self.decompose(question=question)
         
+        # Step 2: Answer each part (simplified for demo)
+        subquestions = decomposition.subquestions.split('\n')
+        subanswers = []
+        
+        for subq in subquestions[:3]:  # Limit for demo
+            if subq.strip():
+                sub_pred = self.answer_sub(subquestion=subq.strip())
+                subanswers.append(sub_pred.subanswer)
+        
+        # Step 3: Combine everything into final answer
+        subanswers_text = '\n'.join(subanswers)
+        final = self.synthesize(
+            question=question, 
+            subanswers=subanswers_text
+        )
+        
+        return dspy.Prediction(
+            subquestions=decomposition.subquestions,
+            subanswers=subanswers_text,
+            reasoning=final.rationale,
+            answer=final.final_answer
+        )
+
+# Example usage demonstrating different module types
+def demonstrate_modules():
+    print("=== Basic Predict Module ===")
+    basic = BasicPredictor()
+    result1 = basic("What is machine learning?")
+    print(f"Answer: {result1.answer}\n")
+    
+    print("=== Chain of Thought Module ===")
+    reasoning = ReasoningPredictor()
+    result2 = reasoning("Why is the sky blue?")
+    print(f"Reasoning: {result2.reasoning}")
+    print(f"Answer: {result2.answer}\n")
+    
+    print("=== Complex Multi-step Module ===")
+    complex_qa = ComplexQA()
+    result3 = complex_qa("How does climate change affect ocean ecosystems?")
+    print(f"Subquestions: {result3.subquestions}")
+    print(f"Subanswers: {result3.subanswers}")
+    print(f"Final Answer: {result3.answer}")
+
+# Each module type serves different purposes:
+# - Predict: Direct input->output transformation
+# - ChainOfThought: Adds explicit reasoning steps
+# - ReAct: Can use tools and external actions
+# - Custom modules: Combine multiple steps for complex workflows
